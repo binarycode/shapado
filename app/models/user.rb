@@ -54,6 +54,8 @@ class User
 
   key :anonymous,                 Boolean, :default => false, :index => true
 
+  key :external_id,               Integer, :default => 0
+
   has_many :questions, :dependent => :destroy
   has_many :answers, :dependent => :destroy
   has_many :comments, :dependent => :destroy
@@ -74,7 +76,7 @@ class User
   validates_inclusion_of :language, :within => AVAILABLE_LOCALES
   validates_inclusion_of :role,  :within => ROLES
 
-  with_options :if => lambda { |e| !e.anonymous } do |v|
+  with_options :if => lambda { |e| !e.anonymous && !e.external_id? } do |v|
     v.validates_presence_of     :login
     v.validates_length_of       :login,    :within => 3..40
     v.validates_uniqueness_of   :login
@@ -254,6 +256,10 @@ Time.zone.now ? 1 : 0)
 
   def twitter_login?
     !twitter_token.blank? && !twitter_secret.blank?
+  end
+
+  def external_id?
+    external_id.present? && (external_id != 0)
   end
 
   def has_voted?(voteable)
@@ -494,7 +500,7 @@ Time.zone.now ? 1 : 0)
   end
 
   def password_required?
-    return false if openid_login? || twitter_login? || self.anonymous
+    return false if openid_login? || twitter_login? || self.anonymous || external_id?
 
     (encrypted_password.blank? || !password.blank?)
   end

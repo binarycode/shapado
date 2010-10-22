@@ -36,6 +36,7 @@ class ApplicationController < ActionController::Base
 
   protect_from_forgery
 
+  before_filter :auth_user
   before_filter :find_group
   before_filter :check_group_access
   before_filter :set_locale
@@ -45,6 +46,32 @@ class ApplicationController < ActionController::Base
   helper_method :recaptcha_tag
 
   protected
+  def auth_user
+    unless logged_in?
+      external_session_cookie = cookies[AppConfig.external_session]
+      return if external_session_cookie.blank?
+
+      external_session = Marshal.load(Base64.decode64(CGI.unescape(external_session_cookie.split("\n").join).split('--').first))
+      id = external_session["warden.user.user.key"].try :[], 1
+      return if id.blank?
+
+      user = User.find_by_external_id id
+      if user.blank?
+        external_user = ExternalUser.find(id) rescue nil
+        return if external_user.blank?
+
+        user = User.create(
+         :login => external_user.login,
+         :email => external_user.email,
+         :identity_url => external_user.identity,
+         :role => "user",
+         :external_id => id
+        )
+      end
+
+      sign_in user if user.present?
+    end
+  end
 
   def check_group_access
     if ((!current_group.registered_only || is_bot?) && !current_group.private) || devise_controller? || (params[:controller] == "users" && action_name == "new" )
