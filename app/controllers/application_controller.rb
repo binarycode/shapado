@@ -62,20 +62,7 @@ class ApplicationController < ActionController::Base
     return if id.blank?
 
     user = User.find_by_external_id id
-    if user.blank?
-      external_user = ExternalUser.find(id) rescue nil
-      return if external_user.blank?
-
-      user = User.new :external_id => id
-      user.email = external_user.email
-      user.role = external_user.role rescue nil
-      user.role = "user" unless user.role?
-      user.identity_url = external_user.identity rescue nil
-      user.login = external_user.login rescue nil
-      user.login = user.email unless user.login?
-      user.login = user.identity_url unless user.login?
-      user.save!
-    end
+    user ||= ExternalUser.find(id).try :to_user
 
     sign_in user if user.present?
   end
